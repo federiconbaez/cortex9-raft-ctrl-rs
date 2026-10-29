@@ -1,0 +1,15 @@
+[package]
+name = "raft-ctrl-rs"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "Apache-2.0"
+description = "Raft that survives corrupted disks: CTRL protocol-aware recovery (FAST'18) under deterministic simulation"
+repository = "https://github.com/federiconbaez/cortex9-raft-ctrl-rs"
+
+[dependencies]
+# Linearizability checker and PRNG, used as a library. Pinned to a commit.
+cortex9-raft-sim = { git = "https://github.com/federiconbaez/cortex9-raft-sim", rev = "0b37dc1da7c0e9faa2cdecf8e79bb65a2a795225" }
+
+[profile.release]
+debug = 1
