@@ -20,3 +20,4 @@
 pub mod crc;
 pub mod disk;
 pub mod node;
+pub mod sim;
