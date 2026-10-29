@@ -52,6 +52,22 @@ Cómo se define cada número:
   - La diferencia de CPU es el costo de escribir y verificar los registros de identificador: tiempo de pared de la simulación completa, mediana de 5 repeticiones intercaladas.
   - En bytes, CTRL agrega 32 bytes por entrada de 512 (6,25%).
 
+### Pre-registro y cotas
+
+- **Medición exploratoria.** Los parámetros de medición (modelo de fallas, tasas, semillas 0..9999, umbrales) **no se pre-registraron públicamente antes de medir**: quedaron fijados en el commit local `56eeadc` y se midieron con el binario de `143a9a8` antes de que el repositorio fuera público. Tomá estos números como exploratorios, no como confirmatorios.
+- **Cota para 0 violaciones (regla del tres).** 0 violaciones en 10 000 semillas independientes da una cota superior al 95% de 3/10 000: la tasa de semillas con violación en CTRL es aproximadamente **menor a 3 en 10 000 (0,03%)** para este modelo de fallas. Lo mismo vale para la recuperación: 0 fallas en 10 000 implica una tasa de recuperación de al menos ~99,97% al 95%. No dice nada sobre modelos de fallas que no simulamos.
+- **Comandos exactos** (desde la raíz del repo, después de `cargo build --release`):
+
+```sh
+./target/release/raft-ctrl-rs run --mode ctrl --faults minority --seeds 10000 --require-safe --min-recovery 0.99
+./target/release/raft-ctrl-rs run --mode vanilla --faults minority --seeds 10000 --require-violation
+./target/release/raft-ctrl-rs overhead --seeds 1000 --reps 5 --max-overhead 0.10
+./target/release/raft-ctrl-rs run --mode ctrl --faults majority --seeds 2000 --require-safe
+./target/release/raft-ctrl-rs run --mode ctrl --faults majority --seeds 2000 --bug discard-on-one-lack --require-violation
+./target/release/raft-ctrl-rs run --mode ctrl --nodes 3 --seeds 2000 --require-safe --min-recovery 0.99
+./target/release/raft-ctrl-rs run --mode vanilla --nodes 3 --seeds 2000 --require-violation
+```
+
 ### Limitaciones (honestas)
 
 - Es una simulación determinista, no un sistema distribuido real. No hay disco real ni `fsync`. El overhead de un disco real (orden de escrituras entre el sector y su identificador) **no está medido**.
@@ -60,7 +76,6 @@ Cómo se define cada número:
 - Sin snapshots ni cambios de membresía.
 - "Vanilla" modela una política concreta: truncar en la primera entrada mala. Otros sistemas reales hacen otras cosas, como caerse o ignorar el checksum.
 - La recuperación de 100% depende de una fase de curación de 1500 ticks sin fallas. Con corrupción en una mayoría de copias de una entrada comprometida, CTRL no recupera: queda sin disponibilidad y no pierde datos.
-- El CI no corrió todavía en GitHub: el repositorio solo existe localmente.
 
 ### Uso
 
@@ -131,6 +146,12 @@ How each number is defined:
   - The CPU difference is the cost of writing and verifying identifier records: wall time of the whole simulation, median of 5 interleaved repetitions.
   - In bytes, CTRL adds 32 bytes per 512-byte entry (6.25%).
 
+### Pre-registration and bounds
+
+- **Exploratory measurement.** The measurement parameters (fault model, rates, seeds 0..9999, thresholds) were **not publicly pre-registered before measuring**: they were fixed in local commit `56eeadc` and measured with the binary built at `143a9a8` before the repository was public. Treat these numbers as exploratory, not confirmatory.
+- **Bound for 0 violations (rule of three).** 0 violations in 10,000 independent seeds gives a 95% upper bound of 3/10,000: CTRL's per-seed violation rate is roughly **below 3 in 10,000 (0.03%)** for this fault model. The same applies to recovery: 0 failures in 10,000 means a recovery rate of at least ~99.97% at 95%. It says nothing about fault models we did not simulate.
+- **Exact commands**: the ones listed in the Spanish section, run from the repository root after `cargo build --release`.
+
 ### Limitations (honest)
 
 - This is a deterministic simulation, not a real distributed system. There is no real disk and no `fsync`. Real-disk overhead (write ordering between a sector and its identifier) is **not measured**.
@@ -139,7 +160,6 @@ How each number is defined:
 - No snapshots or membership changes.
 - "Vanilla" models one concrete policy: truncate at the first bad entry. Other real systems do other things, such as crashing or ignoring the checksum.
 - The 100% recovery relies on a 1500-tick fault-free healing phase. When a majority of copies of a committed entry is corrupted, CTRL does not recover: it stalls and does not lose data.
-- CI has not run on GitHub yet: the repository only exists locally.
 
 ### Usage
 
