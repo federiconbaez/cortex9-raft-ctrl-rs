@@ -321,7 +321,8 @@ mod tests {
             assert_eq!(d.read(i), Ok(e(i, 1 + i / 10)));
             assert_eq!(d.id(i).unwrap().term, 1 + i / 10);
         }
-        for k in 0..2000u64 {
+        let rounds: u64 = if cfg!(miri) { 60 } else { 2000 };
+        for k in 0..rounds {
             let mut c = d.clone();
             let i = 1 + k % 50;
             c.corrupt(i, k.wrapping_mul(0x9E37_79B9_7F4A_7C15));

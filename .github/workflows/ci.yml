@@ -1,0 +1,103 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - name: yamllint
+        run: pipx run --spec yamllint==1.38.0 yamllint -s -c .yamllint.yml .github/workflows
+
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --all-targets
+      - run: cargo test --release --all-targets
+
+  msrv:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.75
+      - run: cargo build --locked --all-targets
+
+  miri:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri, rust-src
+      - name: Miri on unit tests and scripted scenarios
+        run: cargo miri test --lib --test scenarios
+        env:
+          MIRIFLAGS: -Zmiri-strict-provenance
+
+  seeds:
+    name: seeds (${{ matrix.mode }} ${{ matrix.start }})
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [ctrl, vanilla]
+        start: [0, 2500, 5000, 7500]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked
+      - name: CTRL, 2500 seeds, minority corruption, must be safe and recover >= 99%
+        if: matrix.mode == 'ctrl'
+        run: >-
+          ./target/release/raft-ctrl-rs run --mode ctrl --faults minority
+          --seeds 2500 --start ${{ matrix.start }}
+          --require-safe --min-recovery 0.99
+      - name: Vanilla, 2500 seeds, same faults, must lose data
+        if: matrix.mode == 'vanilla'
+        run: >-
+          ./target/release/raft-ctrl-rs run --mode vanilla --faults minority
+          --seeds 2500 --start ${{ matrix.start }} --require-violation
+
+  controls:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked
+      - name: CTRL with every copy corrupted stays safe (may stall)
+        run: >-
+          ./target/release/raft-ctrl-rs run --mode ctrl --faults majority
+          --seeds 2000 --require-safe
+      - name: Negative control, unsafe discard rule must be caught
+        run: >-
+          ./target/release/raft-ctrl-rs run --mode ctrl --faults majority
+          --seeds 2000 --bug discard-on-one-lack --require-violation
+      - name: Three nodes, CTRL safe and recovers, vanilla loses data
+        run: |
+          ./target/release/raft-ctrl-rs run --mode ctrl --nodes 3 --seeds 2000 --require-safe --min-recovery 0.99
+          ./target/release/raft-ctrl-rs run --mode vanilla --nodes 3 --seeds 2000 --require-violation
+      - name: Fault-free overhead <= 10%
+        run: ./target/release/raft-ctrl-rs overhead --seeds 500 --reps 5 --max-overhead 0.10
